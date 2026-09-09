@@ -20,7 +20,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { api, apiError } from '@/lib/api';
 import { formatDate, formatNumber } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import type { AdminUserDetail, AdminUserBlock, PageResult } from '@/types/api';
+import type {
+  AdminUserDetail,
+  AdminUserBlock,
+  AdminUserSubscription,
+  PageResult,
+} from '@/types/api';
 
 const banSchema = z.object({ reason: z.string().min(1, 'Reason is required') });
 type BanForm = z.infer<typeof banSchema>;
@@ -35,6 +40,11 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   const { data: user, isLoading } = useQuery<AdminUserDetail>({
     queryKey: ['admin-user', id],
     queryFn: () => api.get(`/admin/users/${id}`).then((r) => r.data),
+  });
+
+  const { data: subscription } = useQuery<AdminUserSubscription>({
+    queryKey: ['admin-user-subscription', id],
+    queryFn: () => api.get(`/admin/users/${id}/subscription`).then((r) => r.data),
   });
 
   const { data: blocksData } = useQuery<PageResult<AdminUserBlock>>({
@@ -110,8 +120,6 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   if (isLoading) return <div className="flex justify-center py-20"><Spinner className="h-8 w-8" /></div>;
   if (!user) return <p className="text-slate-500">User not found.</p>;
 
-  const isVerified = (user as AdminUserDetail & { isVerified?: boolean }).isVerified;
-
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
       <div className="flex items-center gap-3">
@@ -120,7 +128,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         </Link>
         <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
           {user.displayName}
-          {isVerified && <CheckCircle className="h-4 w-4 text-blue-500" />}
+          {user.isVerified && <CheckCircle className="h-4 w-4 text-blue-500" />}
         </h2>
         {user.isDeleted ? (
           <Badge variant="destructive">Deleted</Badge>
@@ -129,7 +137,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         ) : (
           <Badge variant="success">Active</Badge>
         )}
-        {isVerified && <Badge variant="default" className="bg-blue-600">Verified</Badge>}
+        {user.isVerified && <Badge variant="default" className="bg-blue-600">Verified</Badge>}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -151,12 +159,15 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
             <Row label="Posts" value={formatNumber(user.postCount ?? 0)} />
             <Row label="Followers" value={formatNumber(user.followerCount ?? 0)} />
             <Row label="Following" value={formatNumber(user.followingCount ?? 0)} />
-            {user.subscription && (
+            {subscription?.status ? (
               <>
-                <Row label="Sub tier" value={<Badge variant="secondary" className="capitalize">{user.subscription.tier}</Badge>} />
-                <Row label="Sub status" value={user.subscription.status} />
-                {user.subscription.expiresAt && <Row label="Expires" value={formatDate(user.subscription.expiresAt)} />}
+                <Row label="Sub tier" value={<Badge variant="secondary" className="capitalize">{subscription.tier}</Badge>} />
+                <Row label="Sub status" value={<span className="capitalize">{subscription.status.replace('_', ' ')}</span>} />
+                {subscription.platform && <Row label="Platform" value={<span className="capitalize">{subscription.platform}</span>} />}
+                {subscription.expiresAt && <Row label="Expires" value={formatDate(subscription.expiresAt)} />}
               </>
+            ) : (
+              <Row label="Subscription" value={<span className="text-xs text-slate-400">None on record</span>} />
             )}
           </CardContent>
         </Card>
@@ -203,7 +214,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       {!user.isDeleted && (
         <div className="flex flex-wrap gap-3">
           {/* Verify / Unverify */}
-          {isVerified ? (
+          {user.isVerified ? (
             <Button variant="outline" onClick={() => unverifyMutation.mutate()} disabled={unverifyMutation.isPending}>
               <ShieldOff className="h-4 w-4" />
               Remove Verification

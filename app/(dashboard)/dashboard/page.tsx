@@ -10,13 +10,16 @@ import {
   AlertTriangle,
   UserCheck,
   TrendingUp,
+  DollarSign,
+  RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
+import Link from 'next/link';
 import { api } from '@/lib/api';
-import { formatNumber } from '@/lib/utils';
-import type { AdminStats } from '@/types/api';
+import { formatMoney, formatNumber } from '@/lib/utils';
+import type { AdminStats, RevenueOverview } from '@/types/api';
 
 function StatCard({
   label,
@@ -52,6 +55,16 @@ export default function DashboardPage() {
     queryFn: () => api.get('/admin/stats').then((r) => r.data),
   });
 
+  // TRD §Dashboard lists "Revenue overview" beside user statistics and content
+  // activity. The detail lives on /revenue; these three tiles are the summary.
+  const { data: revenue } = useQuery<RevenueOverview>({
+    queryKey: ['admin-revenue-overview', '30', 'PRODUCTION'],
+    queryFn: () =>
+      api
+        .get('/admin/revenue/overview', { params: { days: 30, environment: 'PRODUCTION' } })
+        .then((r) => r.data),
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -82,6 +95,44 @@ export default function DashboardPage() {
         <StatCard label="Pending Reports" value={data.pendingReports} icon={Flag} highlight={data.pendingReports > 0} />
         <StatCard label="Active Alerts" value={data.activeEmergencyAlerts} icon={AlertTriangle} highlight={data.activeEmergencyAlerts > 0} />
       </div>
+
+      {revenue && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Revenue — last 30 days
+            </h3>
+            <Link
+              href="/revenue"
+              className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              View details
+            </Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard
+              label="Net Revenue"
+              value={formatMoney(revenue.totals.netCents, revenue.currency)}
+              icon={DollarSign}
+            />
+            <StatCard
+              label="MRR"
+              value={formatMoney(revenue.subscriptions.mrrCents, revenue.currency)}
+              icon={RefreshCw}
+            />
+            <StatCard
+              label="Active Subscriptions"
+              value={revenue.subscriptions.activeSubscriptions}
+              icon={UserCheck}
+            />
+          </div>
+          {!revenue.hasProductionData && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              No production purchases yet — the app is still on RevenueCat Test Store keys.
+            </p>
+          )}
+        </div>
+      )}
 
       {tierEntries.length > 0 && (
         <Card>

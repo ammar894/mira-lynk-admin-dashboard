@@ -37,23 +37,38 @@ export interface AdminUser {
   tier: string;
   platformRole: string;
   isDeleted: boolean;
-  isBanned?: boolean;
-  isVerified?: boolean;
+  isBanned: boolean;
+  isVerified: boolean;
+  isShadowBanned: boolean;
+  isEmailVerified: boolean;
+  banReason?: string | null;
+  bannedAt?: string | null;
+  postCount: number;
+  followerCount: number;
+  followingCount: number;
   createdAt: string;
   avatarUrl?: string | null;
 }
 
 export interface AdminUserDetail extends AdminUser {
   bio?: string | null;
-  phone?: string | null;
-  postCount: number;
-  followerCount: number;
-  followingCount: number;
-  subscription?: {
-    tier: string;
-    status: string;
-    expiresAt?: string | null;
-  } | null;
+  profileVisibility: string;
+}
+
+/**
+ * Served by GET /admin/users/:id/subscription, not by the user detail route.
+ * Everything below `tier` is absent until the user has actually purchased.
+ */
+export interface AdminUserSubscription {
+  userId: string;
+  tier: string;
+  createdAt: string;
+  status?: string | null;
+  platform?: string | null;
+  revenuecatProductId?: string | null;
+  startedAt?: string | null;
+  expiresAt?: string | null;
+  cancelledAt?: string | null;
 }
 
 export interface AdminUserBlock {
@@ -137,10 +152,13 @@ export interface EmergencyAlert {
 
 export interface AdConfig {
   id: string;
-  name: string;
+  /** Tier this placement config applies to. The API keys ad configs by tier, not by a display name. */
+  tier: string;
   adsEnabled: boolean;
   injectionInterval: number;
   adUnitId?: string | null;
+  /** Admin-entered eCPM used to estimate ad revenue. Minor units (cents). */
+  estimatedEcpmCents: number;
   updatedAt: string;
 }
 
@@ -153,4 +171,96 @@ export interface AuditLog {
   metadata?: Record<string, unknown> | null;
   ipAddress?: string | null;
   createdAt: string;
+}
+
+// ─── Revenue (MIRA-060 / MIRA-067) ───────────────────────────
+// Every *Cents field is integer minor units of `currency`, matching the API.
+
+export interface RevenueTotals {
+  grossCents: number;
+  netCents: number;
+  refundedCents: number;
+  transactions: number;
+  payingUsers: number;
+}
+
+export interface RevenueSplit {
+  newCents: number;
+  renewalCents: number;
+  oneOffCents: number;
+}
+
+export interface RevenueByTier {
+  tier: string | null;
+  grossCents: number;
+  netCents: number;
+  transactions: number;
+}
+
+export interface RevenueByStore {
+  store: string;
+  grossCents: number;
+  netCents: number;
+  transactions: number;
+}
+
+export interface RevenuePoint {
+  date: string;
+  grossCents: number;
+  netCents: number;
+  transactions: number;
+}
+
+export interface SubscriptionSnapshot {
+  activeSubscriptions: number;
+  byTier: Record<string, number>;
+  mrrCents: number;
+  arpuCents: number;
+  arppuCents: number;
+  churnedInWindow: number;
+}
+
+export interface AdRevenue {
+  source: 'estimated';
+  rewardedCompletions: number;
+  uniqueViewers: number;
+  activeRewards: number;
+  ecpmCents: number;
+  /** Null when no eCPM is configured — "unknown", not "zero". */
+  estimatedCents: number | null;
+}
+
+export type RevenueEnvironment = 'PRODUCTION' | 'SANDBOX' | 'ALL';
+
+export interface RevenueOverview {
+  windowDays: number;
+  from: string;
+  to: string;
+  environment: RevenueEnvironment;
+  /** False until a real (non-sandbox) purchase has ever landed. */
+  hasProductionData: boolean;
+  currency: string;
+  totals: RevenueTotals;
+  split: RevenueSplit;
+  byTier: RevenueByTier[];
+  byStore: RevenueByStore[];
+  series: RevenuePoint[];
+  subscriptions: SubscriptionSnapshot;
+  ads: AdRevenue;
+}
+
+export interface RevenueTransaction {
+  id: string;
+  eventId: string;
+  userId: string | null;
+  displayName: string | null;
+  eventType: string;
+  productId: string | null;
+  tier: string | null;
+  store: string;
+  environment: string;
+  grossCents: number;
+  netCents: number;
+  currency: string;
+  occurredAt: string;
 }
