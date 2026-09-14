@@ -1,0 +1,23 @@
+name: miralynk-admin-prod
+
+# Production stack for the admin dashboard: a single Next.js container.
+# - Published to the host on 127.0.0.1:3001 (backend already owns :3000),
+#   fronted by nginx (admin domain -> 3001).
+# - NEXT_PUBLIC_API_URL is baked in at build time (see Dockerfile), so it's
+#   passed as a build arg here rather than through env_file.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    image: miralynk-admin:latest
+    container_name: miralynk-admin
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:3001:3000"
