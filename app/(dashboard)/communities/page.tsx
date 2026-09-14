@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Search, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -108,7 +109,12 @@ export default function CommunitiesPage() {
                   <TableRow key={c.id}>
                     <TableCell>
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-slate-100">{c.name}</p>
+                        <Link
+                          href={`/communities/${c.id}`}
+                          className="font-medium text-slate-900 hover:underline dark:text-slate-100"
+                        >
+                          {c.name}
+                        </Link>
                         {c.description && <p className="text-xs text-slate-500 truncate max-w-[200px]">{c.description}</p>}
                       </div>
                     </TableCell>

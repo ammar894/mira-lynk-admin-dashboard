@@ -110,6 +110,26 @@ export interface Report {
   createdAt: string;
 }
 
+export interface BlocklistKeyword {
+  id: string;
+  keyword: string;
+  addedById: string;
+  createdAt: string;
+}
+
+export interface AdminPostDetail {
+  id: string;
+  content: string | null;
+  type: string;
+  isPublished: boolean;
+  isDeleted: boolean;
+  likeCount: number;
+  commentCount: number;
+  authorId: string;
+  createdAt: string;
+  author: { displayName: string; email: string };
+}
+
 export interface Community {
   id: string;
   name: string;
@@ -128,6 +148,7 @@ export interface VideoSession {
   title: string;
   topic?: string;
   status: string;
+  sessionType?: string;
   hostId: string;
   hostName?: string;
   hostDisplayName?: string;
@@ -160,6 +181,14 @@ export interface AdConfig {
   /** Admin-entered eCPM used to estimate ad revenue. Minor units (cents). */
   estimatedEcpmCents: number;
   updatedAt: string;
+}
+
+export interface AdminSession {
+  tokenId: string;
+  deviceId: string | null;
+  deviceName: string | null;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface AuditLog {

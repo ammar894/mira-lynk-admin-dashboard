@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { use } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Ban, CheckCircle, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, CheckCircle, Pencil, ShieldCheck, ShieldOff, Trash2, EyeOff, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { api, apiError } from '@/lib/api';
@@ -30,12 +31,20 @@ import type {
 const banSchema = z.object({ reason: z.string().min(1, 'Reason is required') });
 type BanForm = z.infer<typeof banSchema>;
 
+const editSchema = z.object({
+  displayName: z.string().min(1, 'Display name is required').max(100),
+  tier: z.enum(['free', 'pro', 'premium']),
+  platformRole: z.enum(['user', 'super_admin']),
+});
+type EditForm = z.infer<typeof editSchema>;
+
 export default function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const qc = useQueryClient();
   const [banOpen, setBanOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: user, isLoading } = useQuery<AdminUserDetail>({
     queryKey: ['admin-user', id],
@@ -54,6 +63,46 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<BanForm>({
     resolver: zodResolver(banSchema),
+  });
+
+  const {
+    register: registerEdit,
+    handleSubmit: handleEditSubmit,
+    reset: resetEdit,
+    setValue: setEditValue,
+    watch: watchEdit,
+    formState: { errors: editErrors, isSubmitting: isEditSubmitting },
+  } = useForm<EditForm>({ resolver: zodResolver(editSchema) });
+
+  function openEdit() {
+    if (!user) return;
+    resetEdit({
+      displayName: user.displayName,
+      tier: user.tier as EditForm['tier'],
+      platformRole: user.platformRole as EditForm['platformRole'],
+    });
+    setEditOpen(true);
+  }
+
+  const updateMutation = useMutation({
+    mutationFn: (data: EditForm) => api.patch(`/admin/users/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-user', id] });
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      toast({ title: 'User updated' });
+      setEditOpen(false);
+    },
+    onError: (err) => toast({ title: 'Error', description: apiError(err), variant: 'destructive' }),
+  });
+
+  const shadowBanMutation = useMutation({
+    mutationFn: (enabled: boolean) => api.patch(`/admin/users/${id}/shadow-ban`, { enabled }),
+    onSuccess: (_res, enabled) => {
+      qc.invalidateQueries({ queryKey: ['admin-user', id] });
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      toast({ title: enabled ? 'User shadow-banned' : 'Shadow-ban removed' });
+    },
+    onError: (err) => toast({ title: 'Error', description: apiError(err), variant: 'destructive' }),
   });
 
   const banMutation = useMutation({
@@ -138,6 +187,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
           <Badge variant="success">Active</Badge>
         )}
         {user.isVerified && <Badge variant="default" className="bg-blue-600">Verified</Badge>}
+        {user.isShadowBanned && <Badge variant="warning">Shadow-banned</Badge>}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -213,6 +263,33 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
       {!user.isDeleted && (
         <div className="flex flex-wrap gap-3">
+          {/* Edit */}
+          <Button variant="outline" onClick={openEdit}>
+            <Pencil className="h-4 w-4" />
+            Edit
+          </Button>
+
+          {/* Shadow-ban / Unshadow-ban */}
+          {user.isShadowBanned ? (
+            <Button
+              variant="outline"
+              onClick={() => shadowBanMutation.mutate(false)}
+              disabled={shadowBanMutation.isPending}
+            >
+              <Eye className="h-4 w-4" />
+              Remove Shadow-ban
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => shadowBanMutation.mutate(true)}
+              disabled={shadowBanMutation.isPending}
+            >
+              <EyeOff className="h-4 w-4" />
+              Shadow-ban
+            </Button>
+          )}
+
           {/* Verify / Unverify */}
           {user.isVerified ? (
             <Button variant="outline" onClick={() => unverifyMutation.mutate()} disabled={unverifyMutation.isPending}>
@@ -246,6 +323,61 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
           </Button>
         </div>
       )}
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit {user.displayName}</DialogTitle>
+            <DialogDescription>Update this user&apos;s display name, tier, or platform role.</DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={handleEditSubmit((d) => updateMutation.mutate(d))}
+            className="flex flex-col gap-4 mt-2"
+          >
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="edit-displayName">Display name</Label>
+              <Input id="edit-displayName" {...registerEdit('displayName')} />
+              {editErrors.displayName && <p className="text-xs text-red-600">{editErrors.displayName.message}</p>}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Tier</Label>
+              <Select value={watchEdit('tier')} onValueChange={(v) => setEditValue('tier', v as EditForm['tier'])}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="free">Free</SelectItem>
+                  <SelectItem value="pro">Pro</SelectItem>
+                  <SelectItem value="premium">Premium</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Platform role</Label>
+              <Select
+                value={watchEdit('platformRole')}
+                onValueChange={(v) => setEditValue('platformRole', v as EditForm['platformRole'])}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              {watchEdit('platformRole') === 'super_admin' && (
+                <p className="text-xs text-amber-600">
+                  This grants full admin dashboard access. Only assign to trusted staff.
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={isEditSubmitting || updateMutation.isPending}>
+                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Ban Dialog */}
       <Dialog open={banOpen} onOpenChange={setBanOpen}>

@@ -100,6 +100,21 @@ export default function RevenuePage() {
     onError: (err) => toast({ title: 'Error', description: apiError(err), variant: 'destructive' }),
   });
 
+  const [createTier, setCreateTier] = useState<string | null>(null);
+
+  const createMutation = useMutation({
+    mutationFn: (tier: string) => api.post('/admin/ad-configs', { tier }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-ad-configs'] });
+      toast({ title: 'Ad config created' });
+      setCreateTier(null);
+    },
+    onError: (err) => toast({ title: 'Error', description: apiError(err), variant: 'destructive' }),
+  });
+
+  const ALL_TIERS = ['free', 'pro', 'premium'];
+  const missingTiers = ALL_TIERS.filter((t) => !configs?.some((c) => c.tier === t));
+
   function openEdit(config: AdConfig) {
     setSelected(config);
     reset({
@@ -308,9 +323,16 @@ export default function RevenuePage() {
 
       {/* ── AdMob placement configuration ───────────────────── */}
       <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-          AdMob placements
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            AdMob placements
+          </h3>
+          {!configsLoading && missingTiers.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setCreateTier(missingTiers[0])}>
+              Add config
+            </Button>
+          )}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {configs?.map((config) => (
             <Card key={config.id}>
@@ -343,13 +365,48 @@ export default function RevenuePage() {
               </CardContent>
             </Card>
           ))}
-          {configs?.length === 0 && (
+          {!configsLoading && configs?.length === 0 && (
             <p className="col-span-full py-8 text-center text-sm text-slate-500">
-              No ad configs found. Run DB seed to populate.
+              No ad configs yet. Use &ldquo;Add config&rdquo; above to create one per tier.
             </p>
           )}
         </div>
       </div>
+
+      <Dialog open={!!createTier} onOpenChange={(o) => { if (!o) setCreateTier(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add ad config</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>Tier</Label>
+              <Select value={createTier ?? undefined} onValueChange={setCreateTier}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {missingTiers.map((t) => (
+                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">
+                Created with ads enabled, a 5-post injection interval, and no eCPM estimate --
+                edit it afterward to adjust.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setCreateTier(null)}>Cancel</Button>
+              <Button
+                type="button"
+                disabled={!createTier || createMutation.isPending}
+                onClick={() => createTier && createMutation.mutate(createTier)}
+              >
+                {createMutation.isPending ? 'Creating...' : 'Create'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!selected} onOpenChange={(o) => { if (!o) setSelected(null); }}>
         <DialogContent>

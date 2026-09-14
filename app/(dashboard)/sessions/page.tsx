@@ -51,6 +51,7 @@ export default function SessionsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Topic</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Host</TableHead>
                   <TableHead>Capacity</TableHead>
                   <TableHead>Status</TableHead>
@@ -63,6 +64,7 @@ export default function SessionsPage() {
                 {data?.items.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium text-slate-900 dark:text-slate-100">{s.title ?? s.topic}</TableCell>
+                    <TableCell className="text-xs text-slate-500 capitalize">{s.sessionType ?? '—'}</TableCell>
                     <TableCell className="text-sm text-slate-600 dark:text-slate-400">{s.hostName ?? s.hostDisplayName ?? s.hostId}</TableCell>
                     <TableCell className="tabular-nums text-sm">{s.maxParticipants ?? '—'}</TableCell>
                     <TableCell>
@@ -83,7 +85,7 @@ export default function SessionsPage() {
                 ))}
                 {data?.items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-slate-500">No sessions found</TableCell>
+                    <TableCell colSpan={8} className="py-8 text-center text-slate-500">No sessions found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
