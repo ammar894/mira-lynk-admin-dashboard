@@ -1,8 +1,9 @@
 name: miralynk-admin-prod
 
 # Production stack for the admin dashboard: a single Next.js container.
-# - Published to the host on 127.0.0.1:3001 (backend already owns :3000),
-#   fronted by nginx (admin domain -> 3001).
+# - Published on 0.0.0.0:4000 (not 127.0.0.1) -- CloudFront's /admin* origin
+#   behavior targets this port on the box directly, per DevOps, so it must be
+#   reachable from outside, not just loopback.
 # - NEXT_PUBLIC_API_URL is baked in at build time (see Dockerfile), so it's
 #   passed as a build arg here rather than through env_file.
 
@@ -20,4 +21,4 @@ services:
       NODE_ENV: production
       PORT: "3000"
     ports:
-      - "127.0.0.1:3001:3000"
+      - "0.0.0.0:4000:3000"

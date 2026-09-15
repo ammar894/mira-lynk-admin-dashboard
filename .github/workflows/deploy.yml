@@ -24,12 +24,13 @@ jobs:
   deploy:
     runs-on: self-hosted
     # Ties this run to a GitHub Environment (Settings -> Environments), which
-    # is where ADMIN_DASHBOARD_DOMAIN and any auth secrets below are
-    # configured per environment (production vs staging), and gives the run
-    # a clickable deployment URL in the Actions UI.
+    # is where NEXT_PUBLIC_API_URL is configured per environment (production
+    # vs staging), and gives the run a clickable deployment URL in the
+    # Actions UI. Served under CloudFront's existing /admin path, not a
+    # separate domain -- see next.config.ts's basePath.
     environment:
       name: ${{ inputs.environment }}
-      url: https://${{ vars.ADMIN_DASHBOARD_DOMAIN }}
+      url: https://d1glhclb7uoptr.cloudfront.net/admin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,8 +55,10 @@ jobs:
 
       - name: Health check
         run: |
+          # /admin, not /, because of next.config.ts's basePath -- the app
+          # 404s at the bare root once basePath is set.
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/ || echo 000)
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/admin || echo 000)
             if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then
               echo "Admin dashboard healthy (HTTP $code)"
               exit 0
@@ -66,50 +69,12 @@ jobs:
           docker compose -f docker-compose.prod.yml logs --tail=80 app
           exit 1
 
-      - name: Configure nginx reverse proxy
-        env:
-          ADMIN_DASHBOARD_DOMAIN: ${{ vars.ADMIN_DASHBOARD_DOMAIN }}
-          # Optional: gates the whole dashboard behind HTTP basic auth in
-          # front of the app's own login. Useful while the dashboard is
-          # still "almost done" and shouldn't be reachable by anyone who
-          # finds the domain. Leave both secrets unset to skip it.
-          BASIC_AUTH_USER: ${{ secrets.ADMIN_BASIC_AUTH_USER }}
-          BASIC_AUTH_PASSWORD: ${{ secrets.ADMIN_BASIC_AUTH_PASSWORD }}
-        run: |
-          if [ -z "$ADMIN_DASHBOARD_DOMAIN" ]; then
-            echo "vars.ADMIN_DASHBOARD_DOMAIN is not set for the '${{ inputs.environment }}' environment (Settings -> Environments)."
-            exit 1
-          fi
-
-          AUTH_DIRECTIVES=""
-          if [ -n "$BASIC_AUTH_USER" ] && [ -n "$BASIC_AUTH_PASSWORD" ]; then
-            HASH=$(openssl passwd -apr1 "$BASIC_AUTH_PASSWORD")
-            echo "${BASIC_AUTH_USER}:${HASH}" | sudo tee /etc/nginx/.admin-dashboard.htpasswd > /dev/null
-            sudo chmod 640 /etc/nginx/.admin-dashboard.htpasswd
-            AUTH_DIRECTIVES=$'auth_basic "Restricted";\n        auth_basic_user_file /etc/nginx/.admin-dashboard.htpasswd;'
-          fi
-
-          # Own conf.d file (not reverse-proxy.conf, which the backend's
-          # deploy workflow owns) so the two deploys never clobber each
-          # other's nginx config.
-          sudo tee /etc/nginx/conf.d/admin-dashboard.conf > /dev/null <<NGINX
-          server {
-              listen 80;
-              server_name ${ADMIN_DASHBOARD_DOMAIN};
-
-              location / {
-                  ${AUTH_DIRECTIVES}
-                  proxy_pass http://127.0.0.1:3001;
-                  proxy_http_version 1.1;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-              }
-          }
-          NGINX
-          sudo nginx -t
-          sudo systemctl reload nginx
+      # No nginx step: CloudFront's /admin* origin behavior targets port 4000
+      # on this box directly (per DevOps), bypassing the backend's nginx:80
+      # entirely. If that changes and traffic needs to go through nginx
+      # instead, a `location /admin` block has to be added to the SAME
+      # server block the backend's deploy.yml writes to reverse-proxy.conf --
+      # two workflows can't each own a full server block on the same host:80.
 
       - name: Prune dangling images
         if: always()
