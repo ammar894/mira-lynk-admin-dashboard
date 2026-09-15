@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { auth } from './auth';
+import { BASE_PATH } from './basePath';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://d1glhclb7uoptr.cloudfront.net/api/v1';
 
@@ -63,7 +64,9 @@ api.interceptors.response.use(
 
     if (status === 401 && typeof window !== 'undefined') {
       auth.clear();
-      window.location.href = '/login';
+      // Plain browser navigation, not next/link or router.push -- those apply
+      // the configured basePath automatically, this does not.
+      window.location.href = `${BASE_PATH}/login`;
     }
     return Promise.reject(err);
   },

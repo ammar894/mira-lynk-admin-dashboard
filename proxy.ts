@@ -18,12 +18,19 @@ export function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   const token = request.cookies.get('admin_token')?.value;
 
+  // `pathname` above is already basePath-stripped by Next, but `new URL(path,
+  // request.url)` replaces the whole path when `path` starts with "/" -- it
+  // does NOT re-apply basePath the way next/link or router.push do. Without
+  // prepending it back here, every redirect drops the /admin prefix and
+  // lands on a bare /login or /dashboard, which 404s.
+  const { basePath } = request.nextUrl;
+
   if (!isPublic && !token) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL(`${basePath}/login`, request.url));
   }
 
   if (isPublic && token) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL(`${basePath}/dashboard`, request.url));
   }
 
   return NextResponse.next();
