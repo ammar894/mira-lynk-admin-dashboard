@@ -14,6 +14,14 @@ on:
           - staging
         default: production
         required: true
+      force_rebuild:
+        description: >-
+          Rebuild the image from scratch, ignoring Docker's layer cache. Leave
+          off for normal deploys -- a cached build reuses layers whose inputs
+          have not changed and still picks up new commits.
+        type: boolean
+        default: false
+        required: false
 
 # Never run two deploys of the same environment at once.
 concurrency:
@@ -31,42 +39,120 @@ jobs:
     environment:
       name: ${{ inputs.environment }}
       url: https://d1glhclb7uoptr.cloudfront.net/admin
+    env:
+      # The deploy config lives OUTSIDE the checkout, and this is the whole
+      # reason the dashboard's settings stopped disappearing.
+      #
+      # actions/checkout defaults to clean: true, which runs `git clean -ffdx`
+      # against the workspace before every run. `-x` includes ignored files,
+      # and .env is gitignored -- so each deploy DELETED the live config as its
+      # first act, ran unconfigured until the write step recreated it, and left
+      # nothing at all behind if the run failed in between. Keeping the file on
+      # a path git never touches means checkout cannot reach it, the previous
+      # deploy's config survives a failed run, and compose reads it via
+      # --env-file instead of by sitting in the working directory.
+      # Resolved to an absolute path under the runner user's home in the first
+      # step -- $HOME cannot be expanded in this block, which GitHub evaluates
+      # before any shell runs.
+      CONFIG_DIR_NAME: .miralynk-deploy
+      COMPOSE_FILE: docker-compose.prod.yml
+
     steps:
+      - name: Resolve config path
+        run: |
+          set -euo pipefail
+          # Deliberately under $HOME rather than anywhere inside _work/: some
+          # runner setups wipe the work directory between jobs, and the whole
+          # point of this path is that nothing except this step ever writes it.
+          echo "ENV_FILE=$HOME/$CONFIG_DIR_NAME/admin-dashboard.${{ inputs.environment }}.env" >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Write build config
+      - name: Validate deploy configuration
         env:
           # NEXT_PUBLIC_API_URL is inlined into the client bundle at build
           # time (see Dockerfile), so it must exist before `docker compose
           # build`, not just at container start. Not sensitive -> vars.
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
         run: |
+          set -euo pipefail
+          # This used to be a silent `${NEXT_PUBLIC_API_URL:-/api/v1}` fallback.
+          # When the variable was missing from the selected GitHub Environment
+          # the deploy still "succeeded" -- it just baked a relative /api/v1
+          # into the bundle, and the dashboard's API calls resolved against the
+          # CloudFront /admin path instead of the backend. That is the broken
+          # link nobody could explain. Fail loudly instead of shipping a build
+          # that is wrong in a way only a browser can notice.
+          if [ -z "${NEXT_PUBLIC_API_URL:-}" ]; then
+            echo "::error::NEXT_PUBLIC_API_URL is not set for the '${{ inputs.environment }}' environment."
+            echo "::error::Set it under Settings -> Environments -> ${{ inputs.environment }} -> Variables, then re-run."
+            exit 1
+          fi
+          echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}"
+
+      - name: Sync build config
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+        run: |
+          set -euo pipefail
           umask 077
-          cat > .env <<EOF
-          NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-/api/v1}
+          mkdir -p "$(dirname "$ENV_FILE")"
+
+          # Render to a sibling temp file so the swap is a same-filesystem
+          # rename: the live config is either the old one or the new one, never
+          # a half-written file, and never briefly absent.
+          tmp="$(mktemp "${ENV_FILE}.XXXXXX")"
+          trap 'rm -f "$tmp"' EXIT
+          cat > "$tmp" <<EOF
+          NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
           EOF
 
+          if [ -f "$ENV_FILE" ] && cmp -s "$tmp" "$ENV_FILE"; then
+            echo "Config unchanged -- leaving $ENV_FILE untouched."
+          else
+            mv -f "$tmp" "$ENV_FILE"
+            trap - EXIT
+            echo "Config written to $ENV_FILE."
+          fi
+
       - name: Build image
-        run: docker compose -f docker-compose.prod.yml build --no-cache
+        run: |
+          set -euo pipefail
+          # --no-cache was unconditional here, so every deploy rebuilt all
+          # layers -- npm ci included -- even when nothing but a page had
+          # changed. Compose already invalidates from the first changed layer
+          # onward, so a cached build is correct; keep the scorched-earth path
+          # behind the force_rebuild input for when a base image or a lockfile
+          # resolution genuinely needs re-resolving.
+          if [ "${{ inputs.force_rebuild }}" = "true" ]; then
+            echo "force_rebuild requested -- building without cache."
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build --no-cache
+          else
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build
+          fi
 
       - name: Start app
-        run: docker compose -f docker-compose.prod.yml up -d
+        run: docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
 
       - name: Health check
         run: |
+          set -uo pipefail
           # /admin, not /, because of next.config.ts's basePath -- the app
           # 404s at the bare root once basePath is set.
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/admin || echo 000)
-            if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then
+            # Previously this accepted anything under 500, so a 404 -- exactly
+            # what a basePath or routing regression looks like -- was reported
+            # as healthy. Only a real success or redirect counts now.
+            if [ "$code" != "000" ] && [ "$code" -lt 400 ]; then
               echo "Admin dashboard healthy (HTTP $code)"
               exit 0
             fi
             sleep 2
           done
-          echo "Admin dashboard failed health check"
-          docker compose -f docker-compose.prod.yml logs --tail=80 app
+          echo "Admin dashboard failed health check (last HTTP $code)"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --tail=80 app
           exit 1
 
       # No nginx step: CloudFront's /admin* origin behavior targets port 4000
@@ -78,4 +164,6 @@ jobs:
 
       - name: Prune dangling images
         if: always()
+        # Dangling only (no -a): this box also runs the backend stack, and a
+        # broader prune here would evict images that deploy still depends on.
         run: docker image prune -f
