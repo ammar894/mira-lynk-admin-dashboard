@@ -13,7 +13,15 @@ import type { EmergencyAlert } from '@/types/api';
 
 type AlertDetail = EmergencyAlert & {
   contacts?: { id: string; name: string; phone: string }[];
+  visibility?: 'public' | 'private';
+  locationSharing?: boolean;
+  accuracy?: number | null;
+  lastLocationAt?: string | null;
+  alertedUserCount?: number;
+  locations?: { latitude: number; longitude: number; accuracy: number | null; recordedAt: string }[];
 };
+
+const mapsUrl = (lat: number, lng: number) => `https://maps.google.com/?q=${lat},${lng}`;
 
 export default function EmergencyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -48,18 +56,32 @@ export default function EmergencyDetailPage({ params }: { params: Promise<{ id: 
             <Row label="User" value={alert.userDisplayName ?? alert.userId} />
             <Row label="Triggered" value={formatDate(alert.triggeredAt)} />
             <Row label="Resolved" value={alert.resolvedAt ? formatDate(alert.resolvedAt) : 'Still active'} />
+            {alert.visibility && (
+              <Row
+                label="Visibility"
+                value={alert.visibility === 'public' ? 'Public (followers alerted)' : 'Private (contacts only)'}
+              />
+            )}
+            {alert.locationSharing !== undefined && (
+              <Row label="Live location" value={alert.locationSharing ? 'Shared' : 'Not shared'} />
+            )}
+            {alert.alertedUserCount !== undefined && (
+              <Row label="Miralynk users alerted" value={alert.alertedUserCount} />
+            )}
+            {alert.lastLocationAt && <Row label="Last location update" value={formatDate(alert.lastLocationAt)} />}
             {alert.latitude != null && alert.longitude != null && (
               <Row
                 label="Location"
                 value={
                   <a
-                    href={`https://maps.google.com/?q=${alert.latitude},${alert.longitude}`}
+                    href={mapsUrl(alert.latitude, alert.longitude)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-indigo-600 hover:underline dark:text-indigo-400"
                   >
                     <MapPin className="h-3 w-3" />
                     {alert.latitude.toFixed(5)}, {alert.longitude.toFixed(5)}
+                    {alert.accuracy != null && ` (±${Math.round(alert.accuracy)} m)`}
                   </a>
                 }
               />
@@ -69,7 +91,7 @@ export default function EmergencyDetailPage({ params }: { params: Promise<{ id: 
 
         {alert.contacts && alert.contacts.length > 0 && (
           <Card>
-            <CardHeader><CardTitle className="text-sm">Emergency contacts notified</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">Trusted contacts</CardTitle></CardHeader>
             <CardContent>
               <ul className="flex flex-col gap-2">
                 {alert.contacts.map((c) => (
@@ -83,6 +105,33 @@ export default function EmergencyDetailPage({ params }: { params: Promise<{ id: 
           </Card>
         )}
       </div>
+
+      {alert.locations && alert.locations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Location trail ({alert.locations.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+              {alert.locations.map((p) => (
+                <li key={p.recordedAt} className="flex items-center justify-between gap-4 py-2">
+                  <span className="text-slate-500 dark:text-slate-400">{formatDate(p.recordedAt)}</span>
+                  <a
+                    href={mapsUrl(p.latitude, p.longitude)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    <MapPin className="h-3 w-3" />
+                    {p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}
+                    {p.accuracy != null && ` (±${Math.round(p.accuracy)} m)`}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
