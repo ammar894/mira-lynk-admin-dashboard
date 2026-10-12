@@ -12,7 +12,7 @@ import { formatDate } from '@/lib/utils';
 import type { EmergencyAlert } from '@/types/api';
 
 type AlertDetail = EmergencyAlert & {
-  contacts?: { id: string; name: string; phone: string }[];
+  contacts?: { id: string; name: string; phone: string | null; email?: string | null }[];
   visibility?: 'public' | 'private';
   locationSharing?: boolean;
   accuracy?: number | null;
@@ -97,7 +97,8 @@ export default function EmergencyDetailPage({ params }: { params: Promise<{ id: 
                 {alert.contacts.map((c) => (
                   <li key={c.id} className="text-sm">
                     <p className="font-medium text-slate-900 dark:text-slate-100">{c.name}</p>
-                    <p className="text-xs text-slate-500">{c.phone}</p>
+                    {c.phone && <p className="text-xs text-slate-500">{c.phone}</p>}
+                    {c.email && <p className="text-xs text-slate-500">{c.email}</p>}
                   </li>
                 ))}
               </ul>
