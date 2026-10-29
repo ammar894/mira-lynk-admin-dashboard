@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -13,12 +14,12 @@ import {
   DollarSign,
   UserCircle,
   LogOut,
-  Shield,
   BarChart2,
   Settings,
   Sun,
   Moon,
 } from 'lucide-react';
+import webLogo from '@/assets/web-logo.png';
 import { cn } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 
@@ -59,8 +60,8 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-60 flex-col bg-slate-900 text-slate-100">
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-800">
-        <Shield className="h-6 w-6 text-indigo-400 shrink-0" />
-        <span className="font-semibold text-white tracking-tight">Miralynk Admin</span>
+        <Image src={webLogo} alt="Miralynk" className="h-8 w-auto shrink-0 rounded-md" priority />
+        <span className="font-semibold text-white tracking-tight">Admin</span>
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4 px-3">

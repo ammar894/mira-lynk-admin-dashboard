@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Shield } from 'lucide-react';
+import Image from 'next/image';
+import webLogo from '@/assets/web-logo.png';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,9 +50,7 @@ export default function LoginPage() {
     <div className="flex min-h-full flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600">
-            <Shield className="h-6 w-6 text-white" />
-          </div>
+          <Image src={webLogo} alt="Miralynk" className="h-16 w-auto rounded-xl" priority />
           <div className="text-center">
             <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Miralynk Admin</h1>
             <p className="mt-1 text-sm text-slate-500">Sign in with your super-admin account</p>
