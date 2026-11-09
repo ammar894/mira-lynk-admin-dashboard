@@ -30,7 +30,7 @@ const navItems = [
   { href: '/polls', label: 'Polls', icon: BarChart2 },
   { href: '/communities', label: 'Communities', icon: Globe },
   { href: '/sessions', label: 'Sessions', icon: Video },
-  { href: '/emergency', label: 'Emergency', icon: AlertTriangle },
+  { href: '/emergency', label: 'Live Alerts', icon: AlertTriangle },
   { href: '/revenue', label: 'Revenue', icon: DollarSign },
   { href: '/profile', label: 'My Profile', icon: UserCircle },
   { href: '/settings', label: 'Settings', icon: Settings },

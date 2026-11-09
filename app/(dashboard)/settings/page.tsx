@@ -46,7 +46,7 @@ export default function SettingsPage() {
         <CardContent>
           <form onSubmit={handleSubmit((d) => saveMutation.mutate(d))} className="flex flex-col gap-5">
             <Checkbox id="onNewReport" label="Notify on new content report" {...register('onNewReport')} />
-            <Checkbox id="onActiveAlert" label="Notify on active emergency alert" {...register('onActiveAlert')} />
+            <Checkbox id="onActiveAlert" label="Notify on active Live Alert" {...register('onActiveAlert')} />
             <Checkbox id="onNewUser" label="Notify on new user registration" {...register('onNewUser')} />
 
             <div className="flex justify-end">

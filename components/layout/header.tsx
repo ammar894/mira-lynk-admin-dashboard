@@ -8,7 +8,7 @@ const titleMap: Record<string, string> = {
   '/moderation': 'Content Moderation',
   '/communities': 'Communities',
   '/sessions': 'Video Sessions',
-  '/emergency': 'Emergency Alerts',
+  '/emergency': 'Live Alerts',
   '/revenue': 'Revenue & Ads',
   '/profile': 'My Profile',
 };

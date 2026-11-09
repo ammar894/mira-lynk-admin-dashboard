@@ -42,7 +42,7 @@ export default function EmergencyPage() {
       {activeCount > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
           <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-          {activeCount} active emergency alert{activeCount !== 1 ? 's' : ''} right now
+          {activeCount} active Live Alert{activeCount !== 1 ? 's' : ''} right now
         </div>
       )}
 
@@ -101,7 +101,7 @@ export default function EmergencyPage() {
                 ))}
                 {data?.items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-slate-500">No emergency alerts</TableCell>
+                    <TableCell colSpan={6} className="py-8 text-center text-slate-500">No Live Alerts</TableCell>
                   </TableRow>
                 )}
               </TableBody>
