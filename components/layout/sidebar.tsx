@@ -60,7 +60,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-60 flex-col bg-slate-900 text-slate-100">
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-800">
-        <Image src={webLogo} alt="Miralynk" className="h-8 w-auto shrink-0 rounded-md" priority />
+        <Image src={webLogo} alt="Miralynk" className="h-8 w-auto shrink-0" priority />
         <span className="font-semibold text-white tracking-tight">Admin</span>
       </div>
 
